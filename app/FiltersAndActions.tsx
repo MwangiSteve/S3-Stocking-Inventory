@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import Papa from 'papaparse';
 import { FiFileText, FiGrid } from "react-icons/fi";
 import { IoClose } from "react-icons/io5";
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { CategoryDropDown } from "./AppTable/dropdowns/CategoryDropDown";
 import { StatusDropDown } from "./AppTable/dropdowns/StatusDropDown";
 import { SuppliersDropDown } from "./AppTable/dropdowns/SupplierDropDown";
@@ -124,7 +124,7 @@ export default function FiltersAndActions({
     }
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     try {
       const filteredProducts = getFilteredProducts();
 
@@ -137,41 +137,52 @@ export default function FiltersAndActions({
         return;
       }
 
-      const excelData = filteredProducts.map(product => ({
-        'Product Name': product.name,
-        'Family': product.family || 'N/A',
-        'Weight Class': product.weightClass || 'N/A',
-        'Size': product.size || 'N/A',
-        'Buying Price': product.buyingPrice ?? 0,
-        'Selling Price': product.sellingPrice ?? 0,
-        'Quantity': product.quantity,
-        'Status': product.status,
-        'Category': product.category || 'Unknown',
-        'Supplier': product.supplier || 'Unknown',
-        'Created Date': new Date(product.createdAt).toLocaleDateString(),
-      }));
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Products');
 
-      const ws = XLSX.utils.json_to_sheet(excelData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Products');
-
-      // Auto-size columns
-      const colWidths = [
-        { wch: 20 }, // Product Name
-        { wch: 12 }, // Family
-        { wch: 12 }, // Weight Class
-        { wch: 8 }, // Size
-        { wch: 12 }, // Buying Price
-        { wch: 12 }, // Selling Price
-        { wch: 10 }, // Quantity
-        { wch: 12 }, // Status
-        { wch: 15 }, // Category
-        { wch: 15 }, // Supplier
-        { wch: 12 }, // Created Date
+      worksheet.columns = [
+        { header: 'Product Name', key: 'Product Name', width: 20 },
+        { header: 'Family', key: 'Family', width: 12 },
+        { header: 'Weight Class', key: 'Weight Class', width: 12 },
+        { header: 'Size', key: 'Size', width: 8 },
+        { header: 'Buying Price', key: 'Buying Price', width: 12 },
+        { header: 'Selling Price', key: 'Selling Price', width: 12 },
+        { header: 'Quantity', key: 'Quantity', width: 10 },
+        { header: 'Status', key: 'Status', width: 12 },
+        { header: 'Category', key: 'Category', width: 15 },
+        { header: 'Supplier', key: 'Supplier', width: 15 },
+        { header: 'Created Date', key: 'Created Date', width: 12 },
       ];
-      ws['!cols'] = colWidths;
 
-      XLSX.writeFile(wb, `stockly-products-${new Date().toISOString().split('T')[0]}.xlsx`);
+      filteredProducts.forEach(product => {
+        worksheet.addRow({
+          'Product Name': product.name,
+          'Family': product.family || 'N/A',
+          'Weight Class': product.weightClass || 'N/A',
+          'Size': product.size || 'N/A',
+          'Buying Price': product.buyingPrice ?? 0,
+          'Selling Price': product.sellingPrice ?? 0,
+          'Quantity': product.quantity,
+          'Status': product.status,
+          'Category': product.category || 'Unknown',
+          'Supplier': product.supplier || 'Unknown',
+          'Created Date': new Date(product.createdAt).toLocaleDateString(),
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `stockly-products-${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
       toast({
         title: "Excel Export Successful!",
