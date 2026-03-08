@@ -56,3 +56,45 @@ model Product {
   category  Category @relation(fields: [categoryId], references: [id])
   supplier  Supplier? @relation(fields: [supplierId], references: [id])
 }
+
+model AuditLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  actionType   String
+  resourceType String
+  resourceId   String   @db.ObjectId
+  changes      Json?
+  ipAddress    String?
+  userAgent    String?
+  timestamp    DateTime @default(now())
+
+  @@index([userId])
+  @@index([timestamp])
+  @@index([resourceType])
+}
+
+enum RoleName {
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+model Role {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  name        RoleName
+  description String?
+  permissions String[]
+  createdAt   DateTime   @default(now())
+  userRoles   UserRole[]
+
+  @@unique([name])
+}
+
+model UserRole {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  roleId String @db.ObjectId
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+}
