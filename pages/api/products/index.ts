@@ -3,6 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { Product } from "@prisma/client";
+import { parsePaginationParams, buildPaginationResult } from "@/lib/pagination";
+import logger from "@/lib/logger";
 
 
 
@@ -12,6 +14,9 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Add API version header
+  res.setHeader("X-API-Version", "1");
+
   const session = await getServerSession(req, res, authOptions);
 
   if (!session) {
@@ -78,28 +83,42 @@ export default async function handler(
         });
 
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to create product", { error, userId });
         return res.status(500).json({ error: "Failed to create product" });
       }
 
-    // GET PRODUCTS
+    // GET PRODUCTS (with pagination)
     case "GET":
       try {
-        const products = await prisma.product.findMany({
-          where: { userId },
-          orderBy: { createdAt: "desc" },
-        });
+        const pagination = parsePaginationParams(req.query as Record<string, string | string[] | undefined>);
+
+        const [products, totalCount] = await Promise.all([
+          prisma.product.findMany({
+            where: { userId },
+            orderBy: { createdAt: "desc" },
+            skip: pagination.offset,
+            take: pagination.limit,
+          }),
+          prisma.product.count({ where: { userId } }),
+        ]);
 
         const formatted = products.map((p: Product) => ({
-  ...p,
-  quantity: Number(p.quantity),
-  createdAt: p.createdAt.toISOString(),
-}));
+          ...p,
+          quantity: Number(p.quantity),
+          createdAt: p.createdAt.toISOString(),
+        }));
 
+        const result = buildPaginationResult(
+          formatted,
+          totalCount,
+          pagination,
+          (item) => (item as { id: string }).id
+        );
 
-        return res.status(200).json(formatted);
+        return res.status(200).json(result);
 
       } catch (error) {
+        logger.error("Failed to fetch products", { error, userId });
         return res.status(500).json({ error: "Failed to fetch products" });
       }
 
@@ -115,6 +134,7 @@ export default async function handler(
         return res.status(204).end();
 
       } catch (error) {
+        logger.error("Failed to delete product", { error, userId });
         return res.status(500).json({ error: "Failed to delete product" });
       }
 
@@ -123,3 +143,4 @@ export default async function handler(
       return res.status(405).end(`Method ${method} Not Allowed`);
   }
 }
+

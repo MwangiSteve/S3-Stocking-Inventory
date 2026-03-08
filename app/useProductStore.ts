@@ -63,8 +63,15 @@ export const useProductStore = create<ProductState>((set) => ({
   loadProducts: async () => {
     set({ isLoading: true });
     try {
-      const response = await axiosInstance.get("/products");
-      const products = response.data || [];
+      // Fetch all products by using a large limit (pagination support)
+      const response = await axiosInstance.get("/products", {
+        params: { limit: 100, offset: 0 },
+      });
+      // The API now returns a paginated result; extract the data array
+      const responseData = response.data;
+      const products: Product[] = Array.isArray(responseData)
+        ? responseData
+        : (responseData?.data ?? []);
 
       // Optimize by ensuring we don't set the same data
       set((state) => {

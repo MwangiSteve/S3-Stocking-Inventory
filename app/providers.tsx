@@ -1,6 +1,11 @@
 "use client";
 
+import { ThemeProvider } from "@/app/ThemeProvider";
+import { Toaster } from "@/components/ui/toaster";
 import { SessionProvider } from "next-auth/react";
+import React from "react";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { AuthProvider } from "./components/authContext";
 
 export default function Providers({
@@ -10,7 +15,18 @@ export default function Providers({
 }) {
   return (
     <SessionProvider>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <Toaster />
+          <ToastContainer />
+        </ThemeProvider>
+      </AuthProvider>
     </SessionProvider>
   );
 }

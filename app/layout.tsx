@@ -1,17 +1,9 @@
 
 import GlobalLoading from "@/components/GlobalLoading";
-import { SessionProvider } from "next-auth/react";
-
-import { Toaster } from "@/components/ui/toaster";
-import { Poppins } from "next/font/google";
 import localFont from "next/font/local";
-import React, { Suspense } from "react";        
-import Providers from "./providers";  
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { AuthProvider } from "./components/authContext";
+import React, { Suspense } from "react";
+import Providers from "./providers";
 import "./globals.css";
-import { ThemeProvider } from "./ThemeProvider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -22,12 +14,6 @@ const geistMono = localFont({
   src: "./fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
   weight: "100 900",
-});
-
-const poppins = Poppins({
-  subsets: ["latin"],
-  variable: "--font-poppins",
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
 });
 
 export const metadata = {
@@ -58,9 +44,7 @@ export const metadata = {
   icons: {
     icon: "/favicon.ico",
     apple: "/favicon.ico",
-    other: [
-      { rel: "icon", url: "/favicon.ico" },
-    ],
+    other: [{ rel: "icon", url: "/favicon.ico" }],
   },
   openGraph: {
     title: "Stockly - Inventory Management System",
@@ -94,26 +78,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} antialiased`}
-      >
-       <SessionProvider>
-  <AuthProvider>
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <Suspense fallback={<div>Loading...</div>}>
-        <GlobalLoading />
-      </Suspense>
-      <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
-    </ThemeProvider>
-    <Toaster />
-    <ToastContainer />
-  </AuthProvider>
-</SessionProvider>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <Providers>
+          <Suspense fallback={<div>Loading...</div>}>
+            <GlobalLoading />
+          </Suspense>
+          <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+        </Providers>
       </body>
     </html>
   );
