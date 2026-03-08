@@ -17,6 +17,8 @@ model User {
   products   Product[]
   categories Category[]
   suppliers  Supplier[]
+  userRoles  UserRole[]
+  auditLogs  AuditLog[]
 }
 
 model Category {
@@ -55,4 +57,52 @@ model Product {
   user      User     @relation(fields: [userId], references: [id])
   category  Category @relation(fields: [categoryId], references: [id])
   supplier  Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([categoryId])
 }
+
+model Role {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  userRoles   UserRole[]
+}
+
+model UserRole {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  roleId    String   @db.ObjectId
+  assignedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@index([userId])
+  @@index([roleId])
+}
+
+model AuditLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  action       String
+  resourceType String
+  resourceId   String?
+  oldValues    String?
+  newValues    String?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resourceType])
+  @@index([action])
+  @@index([createdAt])
+}
+
