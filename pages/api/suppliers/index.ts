@@ -1,6 +1,13 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { PrismaClient } from "@prisma/client";
 import { getSessionServer } from "@/utils/auth";
+import { dataRateLimit } from "@/middleware/rateLimiter";
+import { handleApiError } from "@/middleware/errorHandler";
+import {
+  createSupplierSchema,
+  updateSupplierSchema,
+  deleteSupplierSchema,
+} from "@/lib/validationSchemas";
 
 const prisma = new PrismaClient();
 
@@ -13,23 +20,22 @@ export default async function handler(
     return res.status(401).json({ error: "Unauthorized" });
   }
 
+  // Apply moderate rate limiting to data endpoints.
+  if (dataRateLimit(req, res)) return;
+
   const { method } = req;
   const userId = session.id;
 
   switch (method) {
     case "POST":
       try {
-        const { name } = req.body;
+        const { name } = createSupplierSchema.parse(req.body);
         const supplier = await prisma.supplier.create({
-          data: {
-            name,
-            userId,
-          },
+          data: { name, userId },
         });
         res.status(201).json(supplier);
       } catch (error) {
-        console.error("Error creating supplier:", error);
-        res.status(500).json({ error: "Failed to create supplier" });
+        handleApiError(error, res);
       }
       break;
     case "GET":
@@ -39,17 +45,12 @@ export default async function handler(
         });
         res.status(200).json(suppliers);
       } catch (error) {
-        console.error("Error fetching suppliers:", error);
-        res.status(500).json({ error: "Failed to fetch suppliers" });
+        handleApiError(error, res);
       }
       break;
     case "PUT":
       try {
-        const { id, name } = req.body;
-
-        if (!id || !name) {
-          return res.status(400).json({ error: "ID and name are required" });
-        }
+        const { id, name } = updateSupplierSchema.parse(req.body);
 
         const updatedSupplier = await prisma.supplier.update({
           where: { id },
@@ -58,30 +59,22 @@ export default async function handler(
 
         res.status(200).json(updatedSupplier);
       } catch (error) {
-        console.error("Error updating supplier:", error);
-        res.status(500).json({ error: "Failed to update supplier" });
+        handleApiError(error, res);
       }
       break;
     case "DELETE":
       try {
-        const { id } = req.body;
+        const { id } = deleteSupplierSchema.parse(req.body);
 
-        const supplier = await prisma.supplier.findUnique({
-          where: { id },
-        });
-
+        const supplier = await prisma.supplier.findUnique({ where: { id } });
         if (!supplier) {
           return res.status(404).json({ error: "Supplier not found" });
         }
 
-        await prisma.supplier.delete({
-          where: { id },
-        });
-
+        await prisma.supplier.delete({ where: { id } });
         res.status(204).end();
       } catch (error) {
-        console.error("Error deleting supplier:", error);
-        res.status(500).json({ error: "Failed to delete supplier" });
+        handleApiError(error, res);
       }
       break;
     default:

@@ -3,6 +3,13 @@ import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { Product } from "@prisma/client";
+import { dataRateLimit } from "@/middleware/rateLimiter";
+import { handleApiError } from "@/middleware/errorHandler";
+import {
+  createProductSchema,
+  updateProductSchema,
+  deleteProductSchema,
+} from "@/lib/validationSchemas";
 
 
 
@@ -18,6 +25,9 @@ export default async function handler(
     return res.status(401).json({ error: "Unauthorized" });
   }
 
+  // Apply moderate rate limiting to data endpoints.
+  if (dataRateLimit(req, res)) return;
+
   const { method } = req;
   const userId = session.user.id;
 
@@ -27,47 +37,31 @@ export default async function handler(
     // CREATE PRODUCT
     case "POST":
       try {
-        const {
-          name,
-          family,
-          weightClass,
-          size,
-          buyingPrice,
-          sellingPrice,
-          quantity,
-          lowStockAlert,
-          categoryId,
-          supplierId,
-        } = req.body;
-
-        if (!name || !sellingPrice || quantity === undefined || !categoryId) {
-          return res.status(400).json({
-            error: "Missing required fields",
-          });
-        }
+        const data = createProductSchema.parse(req.body);
 
         const productFamily =
-          family || (name.toLowerCase().includes("sufuria")
+          data.family ||
+          (data.name.toLowerCase().includes("sufuria")
             ? "Sufuria Family"
             : "General Items");
 
         const product = await prisma.product.create({
           data: {
-            name,
+            name: data.name,
             family: productFamily,
-            weightClass,
-            size,
-            buyingPrice: Number(buyingPrice || 0),
-            sellingPrice: Number(sellingPrice),
-            quantity: BigInt(quantity),
-            lowStockAlert: Number(lowStockAlert || 5),
+            weightClass: data.weightClass,
+            size: data.size,
+            buyingPrice: Number(data.buyingPrice ?? 0),
+            sellingPrice: Number(data.sellingPrice),
+            quantity: BigInt(data.quantity),
+            lowStockAlert: Number(data.lowStockAlert ?? 5),
             status:
-              Number(quantity) <= Number(lowStockAlert || 5)
+              data.quantity <= Number(data.lowStockAlert ?? 5)
                 ? "LOW_STOCK"
                 : "IN_STOCK",
             userId,
-            categoryId,
-            supplierId: supplierId || null,
+            categoryId: data.categoryId,
+            supplierId: data.supplierId || null,
             createdAt: new Date(),
           },
         });
@@ -78,9 +72,9 @@ export default async function handler(
         });
 
       } catch (error) {
-        console.error(error);
-        return res.status(500).json({ error: "Failed to create product" });
+        handleApiError(error, res);
       }
+      break;
 
     // GET PRODUCTS
     case "GET":
@@ -91,22 +85,53 @@ export default async function handler(
         });
 
         const formatted = products.map((p: Product) => ({
-  ...p,
-  quantity: Number(p.quantity),
-  createdAt: p.createdAt.toISOString(),
-}));
-
+          ...p,
+          quantity: Number(p.quantity),
+          createdAt: p.createdAt.toISOString(),
+        }));
 
         return res.status(200).json(formatted);
 
       } catch (error) {
-        return res.status(500).json({ error: "Failed to fetch products" });
+        handleApiError(error, res);
       }
+      break;
+
+    // UPDATE PRODUCT
+    case "PUT":
+      try {
+        const data = updateProductSchema.parse(req.body);
+
+        const updated = await prisma.product.update({
+          where: { id: data.id },
+          data: {
+            ...(data.name !== undefined && { name: data.name }),
+            ...(data.family !== undefined && { family: data.family }),
+            ...(data.weightClass !== undefined && { weightClass: data.weightClass }),
+            ...(data.size !== undefined && { size: data.size }),
+            ...(data.buyingPrice !== undefined && { buyingPrice: Number(data.buyingPrice) }),
+            ...(data.sellingPrice !== undefined && { sellingPrice: Number(data.sellingPrice) }),
+            ...(data.quantity !== undefined && { quantity: BigInt(data.quantity) }),
+            ...(data.lowStockAlert !== undefined && { lowStockAlert: Number(data.lowStockAlert) }),
+            ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
+            ...(data.supplierId !== undefined && { supplierId: data.supplierId || null }),
+          },
+        });
+
+        return res.status(200).json({
+          ...updated,
+          quantity: Number(updated.quantity),
+        });
+
+      } catch (error) {
+        handleApiError(error, res);
+      }
+      break;
 
     // DELETE PRODUCT
     case "DELETE":
       try {
-        const { id } = req.body;
+        const { id } = deleteProductSchema.parse(req.body);
 
         await prisma.product.delete({
           where: { id },
@@ -115,11 +140,12 @@ export default async function handler(
         return res.status(204).end();
 
       } catch (error) {
-        return res.status(500).json({ error: "Failed to delete product" });
+        handleApiError(error, res);
       }
+      break;
 
     default:
-      res.setHeader("Allow", ["POST", "GET", "DELETE"]);
+      res.setHeader("Allow", ["POST", "GET", "PUT", "DELETE"]);
       return res.status(405).end(`Method ${method} Not Allowed`);
   }
 }
