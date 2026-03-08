@@ -1,16 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { PrismaClient } from "@prisma/client";
-import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { MongoClient } from "mongodb";
+import { authRateLimit } from "@/middleware/rateLimiter";
+import { handleApiError } from "@/middleware/errorHandler";
+import { registerSchema } from "@/lib/validationSchemas";
 
 const prisma = new PrismaClient();
-
-const registerSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(6),
-});
 
 export default async function handler(
   req: NextApiRequest,
@@ -19,6 +15,9 @@ export default async function handler(
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
+
+  // Apply strict rate limiting to registration endpoint.
+  if (authRateLimit(req, res)) return;
 
   try {
     const { name, email, password } = registerSchema.parse(req.body);
@@ -48,7 +47,7 @@ export default async function handler(
       counter++;
     }
     
-    const user = await userCollection.insertOne({
+    await userCollection.insertOne({
       name,
       email,
       password: hashedPassword,
@@ -69,10 +68,6 @@ export default async function handler(
 
     res.status(201).json({ id: createdUser.id, name: createdUser.name, email: createdUser.email });
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(500).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: "An unknown error occurred" });
-    }
+    handleApiError(error, res);
   }
 }

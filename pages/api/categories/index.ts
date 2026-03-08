@@ -1,6 +1,13 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { PrismaClient } from "@prisma/client";
 import { getSessionServer } from "@/utils/auth";
+import { dataRateLimit } from "@/middleware/rateLimiter";
+import { handleApiError } from "@/middleware/errorHandler";
+import {
+  createCategorySchema,
+  updateCategorySchema,
+  deleteCategorySchema,
+} from "@/lib/validationSchemas";
 
 const prisma = new PrismaClient();
 
@@ -13,23 +20,22 @@ export default async function handler(
     return res.status(401).json({ error: "Unauthorized" });
   }
 
+  // Apply moderate rate limiting to data endpoints.
+  if (dataRateLimit(req, res)) return;
+
   const { method } = req;
-  const userId = session.id; // Use session.id to get the user ID
+  const userId = session.id;
 
   switch (method) {
     case "POST":
       try {
-        const { name } = req.body;
+        const { name } = createCategorySchema.parse(req.body);
         const category = await prisma.category.create({
-          data: {
-            name,
-            userId,
-          },
+          data: { name, userId },
         });
         res.status(201).json(category);
       } catch (error) {
-        console.error("Error creating category:", error);
-        res.status(500).json({ error: "Failed to create category" });
+        handleApiError(error, res);
       }
       break;
     case "GET":
@@ -39,17 +45,12 @@ export default async function handler(
         });
         res.status(200).json(categories);
       } catch (error) {
-        console.error("Error fetching categories:", error);
-        res.status(500).json({ error: "Failed to fetch categories" });
+        handleApiError(error, res);
       }
       break;
     case "PUT":
       try {
-        const { id, name } = req.body;
-
-        if (!id || !name) {
-          return res.status(400).json({ error: "ID and name are required" });
-        }
+        const { id, name } = updateCategorySchema.parse(req.body);
 
         const updatedCategory = await prisma.category.update({
           where: { id },
@@ -58,34 +59,22 @@ export default async function handler(
 
         res.status(200).json(updatedCategory);
       } catch (error) {
-        console.error("Error updating category:", error);
-        res.status(500).json({ error: "Failed to update category" });
+        handleApiError(error, res);
       }
       break;
     case "DELETE":
       try {
-        const { id } = req.body;
-        console.log("Deleting category with ID:", id); // Debug statement
+        const { id } = deleteCategorySchema.parse(req.body);
 
-        // Check if the category exists
-        const category = await prisma.category.findUnique({
-          where: { id },
-        });
-
+        const category = await prisma.category.findUnique({ where: { id } });
         if (!category) {
           return res.status(404).json({ error: "Category not found" });
         }
 
-        const deleteResponse = await prisma.category.delete({
-          where: { id },
-        });
-
-        console.log("Delete response:", deleteResponse); // Debug statement
-
+        await prisma.category.delete({ where: { id } });
         res.status(204).end();
       } catch (error) {
-        console.error("Error deleting category:", error);
-        res.status(500).json({ error: "Failed to delete category" });
+        handleApiError(error, res);
       }
       break;
     default:
