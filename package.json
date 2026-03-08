@@ -31,6 +31,7 @@
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
     "cookies": "0.9.1",
+    "exceljs": "^4.4.0",
     "js-cookie": "3.0.5",
     "jsonwebtoken": "9.0.3",
     "lucide-react": "0.454.0",
@@ -50,7 +51,6 @@
     "recharts": "3.7.0",
     "tailwind-merge": "2.6.1",
     "tailwindcss-animate": "1.0.7",
-    "xlsx": "0.18.5",
     "zod": "3.25.76",
     "zustand": "5.0.11"
   },

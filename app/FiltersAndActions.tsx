@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import Papa from 'papaparse';
 import { FiFileText, FiGrid } from "react-icons/fi";
 import { IoClose } from "react-icons/io5";
-import * as XLSX from 'xlsx';
+
 import { CategoryDropDown } from "./AppTable/dropdowns/CategoryDropDown";
 import { StatusDropDown } from "./AppTable/dropdowns/StatusDropDown";
 import { SuppliersDropDown } from "./AppTable/dropdowns/SupplierDropDown";
@@ -124,7 +124,7 @@ export default function FiltersAndActions({
     }
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     try {
       const filteredProducts = getFilteredProducts();
 
@@ -137,41 +137,39 @@ export default function FiltersAndActions({
         return;
       }
 
-      const excelData = filteredProducts.map(product => ({
-        'Product Name': product.name,
-        'Family': product.family || 'N/A',
-        'Weight Class': product.weightClass || 'N/A',
-        'Size': product.size || 'N/A',
-        'Buying Price': product.buyingPrice ?? 0,
-        'Selling Price': product.sellingPrice ?? 0,
-        'Quantity': product.quantity,
-        'Status': product.status,
-        'Category': product.category || 'Unknown',
-        'Supplier': product.supplier || 'Unknown',
-        'Created Date': new Date(product.createdAt).toLocaleDateString(),
+      const rows = filteredProducts.map(product => ({
+        name:         product.name,
+        family:       product.family,
+        weightClass:  product.weightClass,
+        size:         product.size,
+        buyingPrice:  product.buyingPrice,
+        sellingPrice: product.sellingPrice,
+        quantity:     product.quantity,
+        status:       product.status,
+        category:     product.category,
+        supplier:     product.supplier,
+        createdAt:    new Date(product.createdAt).toISOString(),
       }));
 
-      const ws = XLSX.utils.json_to_sheet(excelData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Products');
+      const response = await fetch("/api/products/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ products: rows }),
+      });
 
-      // Auto-size columns
-      const colWidths = [
-        { wch: 20 }, // Product Name
-        { wch: 12 }, // Family
-        { wch: 12 }, // Weight Class
-        { wch: 8 }, // Size
-        { wch: 12 }, // Buying Price
-        { wch: 12 }, // Selling Price
-        { wch: 10 }, // Quantity
-        { wch: 12 }, // Status
-        { wch: 15 }, // Category
-        { wch: 15 }, // Supplier
-        { wch: 12 }, // Created Date
-      ];
-      ws['!cols'] = colWidths;
+      if (!response.ok) {
+        throw new Error("Export request failed");
+      }
 
-      XLSX.writeFile(wb, `stockly-products-${new Date().toISOString().split('T')[0]}.xlsx`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const date = new Date().toISOString().split("T")[0];
+      link.href = url;
+      link.download = `stockly-products-${date}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
 
       toast({
         title: "Excel Export Successful!",
