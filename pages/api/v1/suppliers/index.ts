@@ -5,13 +5,11 @@
  * DELETE /api/v1/suppliers
  */
 import { NextApiRequest, NextApiResponse } from "next";
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 import { getSessionServer } from "@/utils/auth";
 import { logAuditEvent, getIpAddress } from "@/lib/audit-logger";
 import { withVersioning } from "@/middleware/versionMiddleware";
 import logger from "@/lib/logger";
-
-const prisma = new PrismaClient();
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getSessionServer(req, res);

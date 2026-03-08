@@ -7,16 +7,14 @@
  * pagination support and version headers applied via withVersioning().
  */
 import { NextApiRequest, NextApiResponse } from "next";
-import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]";
 import { Product } from "@prisma/client";
+import prisma from "@/lib/prisma";
 import { parsePaginationParams, buildPaginationResult } from "@/lib/pagination";
 import { logAuditEvent, getIpAddress } from "@/lib/audit-logger";
 import { withVersioning } from "@/middleware/versionMiddleware";
 import logger from "@/lib/logger";
-
-const prisma = new PrismaClient();
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
